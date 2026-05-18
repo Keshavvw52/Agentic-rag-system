@@ -22,6 +22,7 @@ Classify the query into exactly one of these types:
 Respond only with valid JSON."""
 
 CLASSIFICATION_PROMPT = """Classify this query: "{query}"
+{history_block}
 
 Respond with JSON:
 {{
@@ -29,6 +30,35 @@ Respond with JSON:
   "confidence": <float 0.0-1.0>,
   "reasoning": "<one sentence explaining why>"
 }}"""
+
+
+def _looks_like_memory_query(query: str) -> bool:
+    normalized = " ".join(query.lower().split())
+
+    direct_markers = (
+        "previous question",
+        "previous questions",
+        "previous query",
+        "previous queries",
+        "last query",
+        "last queries",
+        "earlier query",
+        "earlier queries",
+        "conversation history",
+        "what did i ask",
+        "what was my last",
+        "what were my last",
+        "questions i asked",
+        "queries i asked",
+    )
+    if any(marker in normalized for marker in direct_markers):
+        return True
+
+    has_last_or_previous = any(word in normalized for word in ("last", "previous", "earlier"))
+    has_question_or_query = any(word in normalized for word in ("question", "questions", "query", "queries"))
+    has_first_person = any(phrase in normalized for phrase in ("i asked", "have i asked", "my"))
+
+    return has_last_or_previous and has_question_or_query and has_first_person
 
 
 async def classify_query(
@@ -43,8 +73,21 @@ async def classify_query(
         (query_type, confidence, reasoning, retrieval_strategy)
     """
     try:
+        history_block = ""
+        if conversation_history:
+            recent_history = "\n".join(
+                f"- {msg.get('role', 'user')}: {msg.get('content', '')}"
+                for msg in conversation_history[-6:]
+            )
+            history_block = (
+                "\nRecent conversation history is available. "
+                "If the query refers to earlier questions, previous answers, "
+                "or chat context, prefer CONVERSATIONAL.\n"
+                f"Conversation history:\n{recent_history}\n"
+            )
+
         result = await call_groq_json(
-            CLASSIFICATION_PROMPT.format(query=query),
+            CLASSIFICATION_PROMPT.format(query=query, history_block=history_block),
             system_prompt=CLASSIFICATION_SYSTEM_PROMPT,
             max_tokens=200,
             temperature=0.0,
@@ -65,6 +108,12 @@ async def classify_query(
         if confidence < settings.ROUTING_CONFIDENCE_MIN:
             query_type = QueryType.FACTUAL
             reasoning = f"Low confidence ({confidence:.0%}); defaulting to FACTUAL for safe routing. " + reasoning
+
+        # Lightweight override for explicit memory-style follow-ups.
+        if conversation_history and _looks_like_memory_query(query):
+            query_type = QueryType.CONVERSATIONAL
+            confidence = max(confidence, 0.9)
+            reasoning = "The query explicitly refers to earlier turns, so it should use conversational memory."
 
         # Apply user's custom routing config if available
         strategy = _select_strategy(query_type, user_routing_config)

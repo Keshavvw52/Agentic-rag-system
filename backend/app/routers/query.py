@@ -21,6 +21,27 @@ router = APIRouter()
 ANSWER_SYSTEM_PROMPT = """You are a helpful AI assistant. Answer based on the provided context."""
 
 
+async def _load_conversation_history(user_id: str, limit: int = 6) -> list[dict]:
+    """Load recent user/assistant turns from previous queries for conversational context."""
+    db = get_database()
+    previous_queries = await db.queries.find(
+        {"user_id": user_id},
+        {"query": 1, "answer": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+
+    history: list[dict] = []
+    for item in reversed(previous_queries):
+        query_text = (item.get("query") or "").strip()
+        answer_text = (item.get("answer") or "").strip()
+
+        if query_text:
+            history.append({"role": "user", "content": query_text})
+        if answer_text:
+            history.append({"role": "assistant", "content": answer_text})
+
+    return history
+
+
 @router.post("", response_model=QueryResponse)
 async def agentic_query(
     request: QueryRequest,
@@ -32,12 +53,14 @@ async def agentic_query(
     """
     user_id = current_user["id"]
     query_id = str(uuid.uuid4())
+    conversation_history = await _load_conversation_history(user_id)
 
     # Run agentic pipeline
     state = await run_agentic_pipeline(
         query=request.query,
         user_id=user_id,
         query_id=query_id,
+        conversation_history=conversation_history,
     )
 
     # Default confidence if pipeline failed early
