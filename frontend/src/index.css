@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,500..800,80..100,0..1&family=Nunito:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-surface-100 text-surface-950 font-sans;
+    min-height: 100vh;
+    position: relative;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.04;
+    mix-blend-mode: multiply;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(44, 44, 36, 0.65) 0 1px, transparent 1px),
+      radial-gradient(circle at 80% 10%, rgba(193, 140, 93, 0.55) 0 1px, transparent 1px),
+      radial-gradient(circle at 50% 80%, rgba(93, 112, 82, 0.55) 0 1px, transparent 1px);
+    background-size: 18px 18px, 22px 22px, 26px 26px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-brand-500/20 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-brand-500/40; }
+}
+
+@layer components {
+  .organic-page {
+    @apply relative min-h-screen overflow-hidden bg-surface-100 text-surface-950;
+  }
+
+  .organic-card {
+    @apply border;
+    border-color: rgba(222, 216, 207, 0.6);
+    background-color: rgba(254, 254, 250, 0.8);
+    border-radius: 2rem 3.5rem 2.25rem 3rem / 2.5rem 2rem 3.25rem 2rem;
+    box-shadow: 0 4px 20px -2px rgba(93, 112, 82, 0.15);
+    backdrop-filter: blur(4px);
+  }
+
+  .organic-panel {
+    @apply border;
+    border-color: rgba(222, 216, 207, 0.6);
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 2rem;
+    box-shadow: 0 4px 20px -2px rgba(93, 112, 82, 0.15);
+    backdrop-filter: blur(4px);
+  }
+
+  .organic-input {
+    @apply border transition-all focus:outline-none focus:ring-2 focus:ring-offset-2;
+    border-color: #DED8CF;
+    background-color: rgba(255, 255, 255, 0.6);
+    color: #2C2C24;
+    box-shadow: 0 4px 20px -2px rgba(93, 112, 82, 0.15);
+    --tw-ring-color: rgba(93, 112, 82, 0.3);
+    --tw-ring-offset-color: #FDFCF8;
+  }
+
+  .organic-input::placeholder {
+    color: rgba(120, 120, 108, 0.7);
+  }
+
+  .organic-button {
+    @apply rounded-full px-8 py-3 font-bold transition-all duration-300 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100;
+    background-color: #5D7052;
+    color: #F3F4F1;
+    box-shadow: 0 4px 20px -2px rgba(93, 112, 82, 0.15);
+  }
+
+  .organic-button:hover {
+    box-shadow: 0 20px 40px -10px rgba(93, 112, 82, 0.18);
+  }
+
+  .organic-button-secondary {
+    @apply rounded-full border-2 bg-transparent px-8 py-3 font-bold transition-all duration-300 hover:scale-105 active:scale-95;
+    border-color: #C18C5D;
+    color: #A87345;
+  }
+
+  .organic-button-secondary:hover {
+    background-color: #C18C5D;
+    color: #FFFFFF;
+  }
+
+  .organic-blob {
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+
+  .organic-blob-alt {
+    border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+  }
+}
+
+/* Prose overrides for dark mode */
+.prose-invert {
+  --tw-prose-body: #4A4A40;
+  --tw-prose-headings: #2C2C24;
+  --tw-prose-code: #2C2C24;
+  --tw-prose-pre-bg: rgba(240,235,229,0.7);
+  --tw-prose-bold: #2C2C24;
+}
+
+.prose code {
+  @apply bg-sand/70 px-1.5 py-0.5 rounded-2xl text-sm font-mono;
+  font-size: 0.85em;
+}
+
+.prose pre {
+  @apply bg-surface-200/70 border border-timber/70 rounded-3xl;
+}
+
+.prose a {
+  @apply text-brand-600 no-underline hover:underline;
+}

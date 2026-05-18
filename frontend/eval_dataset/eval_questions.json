@@ -1,0 +1,37 @@
+[
+  {
+    "id": "eval_001",
+    "query": "What was the total revenue in Q3?",
+    "query_type": "FACTUAL",
+    "expected_strategy": "HYBRID_RERANK",
+    "notes": "Tests factual lookup routing and precise retrieval"
+  },
+  {
+    "id": "eval_002",
+    "query": "Compare the growth rates across all regions and identify which performed best",
+    "query_type": "ANALYTICAL",
+    "expected_strategy": "MULTI_QUERY",
+    "notes": "Tests analytical routing and multi-query retrieval"
+  },
+  {
+    "id": "eval_003",
+    "query": "Summarize the executive summary section",
+    "query_type": "SUMMARIZATION",
+    "expected_strategy": "SECTION_BASED",
+    "notes": "Tests summarization routing and section-based retrieval"
+  },
+  {
+    "id": "eval_004",
+    "query": "What is the weather like in New York today?",
+    "query_type": "OUT_OF_SCOPE",
+    "expected_strategy": "FALLBACK",
+    "notes": "Tests out-of-scope detection and graceful abstention"
+  },
+  {
+    "id": "eval_005",
+    "query": "What are the key risks mentioned in the document?",
+    "query_type": "ANALYTICAL",
+    "expected_strategy": "MULTI_QUERY",
+    "notes": "Tests risk extraction across document"
+  }
+]
