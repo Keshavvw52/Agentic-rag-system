@@ -1,6 +1,6 @@
 import json
 import asyncio
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 from groq import AsyncGroq
 from app.config.settings import settings
 
@@ -43,6 +43,45 @@ async def call_groq(
                 raise
             await asyncio.sleep(2 ** attempt)
     return ""
+
+
+async def call_groq_stream(
+    prompt: str,
+    system_prompt: str = "You are a helpful AI assistant.",
+    max_tokens: int = 1000,
+    temperature: float = 0.1,
+    model: Optional[str] = None,
+    retries: int = 3,
+) -> AsyncIterator[str]:
+    """Basic LLM call returning streamed text chunks."""
+    client = get_groq_client()
+    model = model or settings.GROQ_MODEL
+
+    for attempt in range(retries):
+        try:
+            stream = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stream=True,
+            )
+
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = getattr(chunk.choices[0], "delta", None)
+                content = getattr(delta, "content", None)
+                if content:
+                    yield content
+            return
+        except Exception:
+            if attempt == retries - 1:
+                raise
+            await asyncio.sleep(2 ** attempt)
 
 
 async def call_groq_json(
@@ -91,3 +130,22 @@ QUESTION: {query}
 Answer based on the context above."""
 
     return await call_groq(prompt, system_prompt, max_tokens, temperature)
+
+
+async def call_groq_with_context_stream(
+    query: str,
+    context: str,
+    system_prompt: str,
+    max_tokens: int = 1500,
+    temperature: float = 0.1,
+) -> AsyncIterator[str]:
+    """Generate an answer from retrieved context and stream text chunks."""
+    prompt = f"""CONTEXT:
+{context}
+
+QUESTION: {query}
+
+Answer based on the context above."""
+
+    async for chunk in call_groq_stream(prompt, system_prompt, max_tokens, temperature):
+        yield chunk
