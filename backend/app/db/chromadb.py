@@ -1,12 +1,14 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
-from sentence_transformers import SentenceTransformer
 from app.config.settings import settings
 
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
+
 _chroma_client: Any | None = None
-_embedding_model: SentenceTransformer | None = None
+_embedding_model: Any | None = None
 
 
 async def init_chromadb():
@@ -24,9 +26,10 @@ def get_chroma_client() -> Any:
     return _chroma_client
 
 
-def get_embedding_model() -> SentenceTransformer:
+def get_embedding_model() -> Any:
     global _embedding_model
     if _embedding_model is None:
+        from sentence_transformers import SentenceTransformer
         _embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
         print(f"Embedding model loaded: {settings.EMBEDDING_MODEL}")
     return _embedding_model

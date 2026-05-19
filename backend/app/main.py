@@ -13,8 +13,13 @@ from app.routers import auth, documents, query, evaluation, config_routes, stats
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown lifecycle."""
     # Startup
+    print("Startup: beginning application initialization")
+    print("Startup: connecting to MongoDB")
     await connect_to_mongo()
+    print("Startup: MongoDB ready")
+    print("Startup: initializing ChromaDB")
     await init_chromadb()
+    print("Startup: ChromaDB ready")
     print("Agentic RAG System started successfully")
     yield
     # Shutdown
