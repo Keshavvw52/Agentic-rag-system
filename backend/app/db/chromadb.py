@@ -10,12 +10,11 @@ _embedding_model: SentenceTransformer | None = None
 
 
 async def init_chromadb():
-    global _chroma_client, _embedding_model
+    global _chroma_client
     _chroma_client = chromadb.PersistentClient(
         path=settings.CHROMA_PERSIST_DIR,
         settings=ChromaSettings(anonymized_telemetry=False),
     )
-    _embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
     print(f"ChromaDB initialized at {settings.CHROMA_PERSIST_DIR}")
 
 
@@ -26,8 +25,10 @@ def get_chroma_client() -> Any:
 
 
 def get_embedding_model() -> SentenceTransformer:
+    global _embedding_model
     if _embedding_model is None:
-        raise RuntimeError("Embedding model not initialized.")
+        _embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
+        print(f"Embedding model loaded: {settings.EMBEDDING_MODEL}")
     return _embedding_model
 
 
