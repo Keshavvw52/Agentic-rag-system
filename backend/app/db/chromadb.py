@@ -1,9 +1,11 @@
+from typing import Any
+
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 from sentence_transformers import SentenceTransformer
 from app.config.settings import settings
 
-_chroma_client: chromadb.PersistentClient | None = None
+_chroma_client: Any | None = None
 _embedding_model: SentenceTransformer | None = None
 
 
@@ -17,7 +19,7 @@ async def init_chromadb():
     print(f"ChromaDB initialized at {settings.CHROMA_PERSIST_DIR}")
 
 
-def get_chroma_client() -> chromadb.PersistentClient:
+def get_chroma_client() -> Any:
     if _chroma_client is None:
         raise RuntimeError("ChromaDB not initialized.")
     return _chroma_client
