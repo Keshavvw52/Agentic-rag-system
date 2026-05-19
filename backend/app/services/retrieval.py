@@ -10,6 +10,35 @@ from app.schemas.schemas import RetrievalStrategy
 _reranker: CrossEncoder | None = None
 
 
+def _looks_like_memory_query(query: str) -> bool:
+    normalized = " ".join(query.lower().split())
+
+    direct_markers = (
+        "previous question",
+        "previous questions",
+        "previous query",
+        "previous queries",
+        "last query",
+        "last queries",
+        "earlier query",
+        "earlier queries",
+        "conversation history",
+        "what did i ask",
+        "what was my last",
+        "what were my last",
+        "questions i asked",
+        "queries i asked",
+    )
+    if any(marker in normalized for marker in direct_markers):
+        return True
+
+    has_last_or_previous = any(word in normalized for word in ("last", "previous", "earlier"))
+    has_question_or_query = any(word in normalized for word in ("question", "questions", "query", "queries"))
+    has_first_person = any(phrase in normalized for phrase in ("i asked", "have i asked", "my"))
+
+    return has_last_or_previous and has_question_or_query and has_first_person
+
+
 def get_reranker() -> CrossEncoder:
     global _reranker
     if _reranker is None:
@@ -225,6 +254,40 @@ async def conversational_retrieval(
     """
     if not history:
         return await hybrid_search(query, user_id, top_k)
+
+    if _looks_like_memory_query(query):
+        user_turns = [msg for msg in history if msg.get("role") == "user" and msg.get("content")]
+        assistant_turns = [msg for msg in history if msg.get("role") == "assistant" and msg.get("content")]
+
+        memory_chunks: list[dict] = []
+        if user_turns:
+            recent_queries = [msg["content"] for msg in user_turns[-5:]]
+            memory_chunks.append({
+                "text": "Recent user queries:\n" + "\n".join(
+                    f"{idx + 1}. {text}" for idx, text in enumerate(recent_queries)
+                ),
+                "score": 1.0,
+                "metadata": {
+                    "filename": "conversation_memory",
+                    "source_type": "conversation_history",
+                },
+                "source": "conversation_memory",
+            })
+
+        if assistant_turns:
+            recent_answers = [msg["content"] for msg in assistant_turns[-3:]]
+            memory_chunks.append({
+                "text": "Recent assistant answers:\n" + "\n\n".join(recent_answers),
+                "score": 0.85,
+                "metadata": {
+                    "filename": "conversation_memory",
+                    "source_type": "conversation_history",
+                },
+                "source": "conversation_memory",
+            })
+
+        if memory_chunks:
+            return memory_chunks[:top_k]
 
     from app.services.groq_client import call_groq
 

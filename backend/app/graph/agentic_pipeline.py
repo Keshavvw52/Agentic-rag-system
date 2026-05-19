@@ -123,6 +123,29 @@ async def node_evaluate_retrieval(state: AgentState) -> AgentState:
         )
         return state
 
+    # Conversation-memory chunks are already curated from prior user turns,
+    # so we should not push them through document-quality fallback logic.
+    if all(
+        c.get("metadata", {}).get("source_type") == "conversation_history"
+        for c in chunks
+    ):
+        state.crag_labels = [ChunkLabel.CORRECT for _ in chunks]
+        for chunk in state.retrieved_chunks:
+            chunk["crag_score"] = 1.0
+            chunk["crag_label"] = ChunkLabel.CORRECT.value
+
+        _add_trace(state, "evaluate_retrieval",
+            f"CRAG Decision: PROCEED ({len(chunks)} memory chunks accepted)",
+            "Retrieved chunks came from stored conversation history, so they were accepted directly.",
+            {
+                "decision": "PROCEED",
+                "memory_chunks": len(chunks),
+                "source_type": "conversation_history",
+            },
+            t,
+        )
+        return state
+
     labels, scores = await evaluate_retrieval(state.query, chunks)
     state.crag_labels = labels
 
