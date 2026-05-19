@@ -6,6 +6,8 @@ Level 3: LLM general knowledge
 Level 4: Abstain with explanation
 """
 
+import re
+
 from app.schemas.schemas import AnswerSource
 from app.services.groq_client import call_groq
 from app.config.settings import settings
@@ -19,6 +21,53 @@ IMPORTANT: This answer comes from your general training knowledge, NOT from the 
 Clearly state this limitation. Be accurate but acknowledge uncertainty."""
 
 
+def _build_web_search_query(query: str) -> str:
+    """
+    Rewrite ambiguous live-info queries into search-engine-friendly phrasing.
+    This helps queries like "current temperature in Noida" avoid matching
+    "electric current" results.
+    """
+    normalized = " ".join(query.lower().split())
+    weather_terms = ("temperature", "weather", "forecast", "humidity", "wind", "rain")
+
+    if any(term in normalized for term in weather_terms):
+        match = re.search(r"\bin\s+([A-Za-z][A-Za-z\s,.-]{1,80})", query, re.IGNORECASE)
+        location = match.group(1).strip(" .?!,") if match else ""
+
+        if "temperature" in normalized:
+            return f"current weather temperature in {location}" if location else "current weather temperature"
+        if "weather" in normalized or "forecast" in normalized:
+            return f"current weather in {location}" if location else "current weather"
+        if "humidity" in normalized:
+            return f"current humidity in {location}" if location else "current humidity weather"
+        if "wind" in normalized:
+            return f"current wind speed in {location}" if location else "current wind weather"
+        if "rain" in normalized:
+            return f"rain forecast in {location}" if location else "rain forecast"
+
+    return query
+
+
+async def search_web_results(query: str) -> tuple[list[dict], str]:
+    """
+    Try Tavily first when enabled, then gracefully fall back to DuckDuckGo.
+    Returns (results, provider_name).
+    """
+    search_query = _build_web_search_query(query)
+
+    if settings.USE_TAVILY and settings.TAVILY_API_KEY:
+        web_results = await _tavily_search(search_query)
+        if web_results:
+            return web_results, "tavily"
+        print("Tavily returned no results or failed, falling back to DuckDuckGo")
+
+    web_results = await _duckduckgo_search(search_query)
+    if web_results:
+        return web_results, "duckduckgo"
+
+    return [], "none"
+
+
 async def fallback_web_search(query: str) -> tuple[str, AnswerSource, list[dict]]:
     """
     Level 2 fallback: search the web for an answer.
@@ -26,10 +75,7 @@ async def fallback_web_search(query: str) -> tuple[str, AnswerSource, list[dict]
     """
     web_results = []
 
-    if settings.USE_TAVILY and settings.TAVILY_API_KEY:
-        web_results = await _tavily_search(query)
-    else:
-        web_results = await _duckduckgo_search(query)
+    web_results, provider = await search_web_results(query)
 
     if not web_results:
         return "", AnswerSource.WEB_SEARCH, []
@@ -42,7 +88,7 @@ async def fallback_web_search(query: str) -> tuple[str, AnswerSource, list[dict]
 
     answer = await call_groq(
         f"Web search results for: {query}\n\n{results_text}\n\nAnswer the question based on these results.",
-        system_prompt=WEB_SEARCH_SYSTEM,
+        system_prompt=f"{WEB_SEARCH_SYSTEM}\nThe search provider used was: {provider}.",
         max_tokens=1000,
         temperature=0.1,
     )
@@ -55,7 +101,7 @@ async def fallback_llm_knowledge(query: str) -> tuple[str, AnswerSource]:
     Level 3 fallback: use LLM's general knowledge.
     """
     answer = await call_groq(
-        f"Question: {query}\n\nAnswer from your general knowledge. Start your response with: 'Based on general knowledge (not from your documents):'",
+        f"Question: {query}\n\nAnswer from your general knowledge. Start your response with: 'Live web search was unavailable, so this answer is based on general knowledge (not from your documents):'",
         system_prompt=LLM_KNOWLEDGE_SYSTEM,
         max_tokens=1000,
         temperature=0.2,
