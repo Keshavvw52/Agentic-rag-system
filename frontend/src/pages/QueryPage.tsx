@@ -25,6 +25,8 @@ export default function QueryPage() {
   const [inputValue, setInputValue] = useState(currentQuery)
   const [isDragging, setIsDragging] = useState(false)
   const [uploadingFile, setUploadingFile] = useState<string | null>(null)
+  const [streamingAnswer, setStreamingAnswer] = useState('')
+  const [streamStatus, setStreamStatus] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -42,17 +44,33 @@ export default function QueryPage() {
     }
 
     reset()
+    setStreamingAnswer('')
+    setStreamStatus('Preparing query...')
     setQuery(q)
     setInputValue('')
     setLoading(true)
     setError(null)
 
     try {
-      const { data } = await queryApi.agentic(q)
-      setAgenticResult(data)
+      await queryApi.agenticStream(q, {
+        onStatus: (message) => setStreamStatus(message),
+        onAnswerDelta: (text) => setStreamingAnswer(prev => prev + text),
+        onAnswerReplace: (text) => setStreamingAnswer(text),
+        onComplete: (result) => {
+          setAgenticResult(result)
+          setStreamingAnswer('')
+          setStreamStatus('')
+        },
+      })
     } catch (e) {
-      const detail = e instanceof AxiosError ? e.response?.data?.detail : undefined
+      const detail = e instanceof AxiosError
+        ? e.response?.data?.detail
+        : e instanceof Error
+          ? e.message
+          : undefined
       setError(typeof detail === 'string' ? detail : 'Query failed')
+      setStreamingAnswer('')
+      setStreamStatus('')
     } finally {
       setLoading(false)
     }
@@ -221,7 +239,7 @@ export default function QueryPage() {
           )}
 
           {/* Loading state */}
-          {isLoading && (
+          {isLoading && !streamingAnswer && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -232,7 +250,7 @@ export default function QueryPage() {
                 <div className="absolute inset-0 rounded-full border-t-2 border-brand-500 animate-spin" />
                 <Zap className="absolute inset-0 m-auto w-6 h-6 text-brand-400" />
               </div>
-              <p className="text-surface-900 text-sm font-bold">Agent is reasoning...</p>
+              <p className="text-surface-900 text-sm font-bold">{streamStatus || 'Agent is reasoning...'}</p>
               <div className="mt-3 space-y-1.5">
                 {['Classifying query…', 'Retrieving documents…', 'Evaluating quality…', 'Checking for hallucinations…'].map((msg, i) => (
                   <motion.p
@@ -245,6 +263,35 @@ export default function QueryPage() {
                     {msg}
                   </motion.p>
                 ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Streaming result */}
+          {isLoading && streamingAnswer && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs px-2.5 py-1 bg-brand-500/15 border border-brand-500/20 text-brand-700 rounded-full">
+                  Streaming answer
+                </span>
+                <span className="text-xs text-surface-800">{streamStatus || 'Generating answer...'}</span>
+              </div>
+
+              <div className="organic-card overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-timber/60">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 text-brand-500 animate-spin" />
+                    <span className="text-xs font-semibold text-surface-900">Answer in progress</span>
+                  </div>
+                </div>
+
+                <div className="p-5 prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown>{streamingAnswer}</ReactMarkdown>
+                </div>
               </div>
             </motion.div>
           )}
