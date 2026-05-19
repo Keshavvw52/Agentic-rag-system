@@ -32,10 +32,9 @@ from app.graph.agentic_pipeline import (
     _add_trace,
     ANSWER_SYSTEM_PROMPT,
 )
-from app.config.settings import settings
 from app.services.retrieval import retrieve, RetrievalStrategy
 from app.services.corrective_rag import filter_relevant_chunks
-from app.services.fallback_chain import fallback_abstain, _duckduckgo_search, _tavily_search, WEB_SEARCH_SYSTEM, LLM_KNOWLEDGE_SYSTEM
+from app.services.fallback_chain import fallback_abstain, search_web_results, WEB_SEARCH_SYSTEM, LLM_KNOWLEDGE_SYSTEM
 from app.services.groq_client import call_groq_stream, call_groq_with_context, call_groq_with_context_stream
 
 router = APIRouter()
@@ -141,10 +140,7 @@ async def _stream_fallback_answer(state: AgentState) -> AsyncIterator[str]:
         f"Query refinement and retry ({state.retries} attempts)",
     ]
 
-    if settings.USE_TAVILY and settings.TAVILY_API_KEY:
-        web_results = await _tavily_search(state.query)
-    else:
-        web_results = await _duckduckgo_search(state.query)
+    web_results, provider = await search_web_results(state.query)
 
     if web_results:
         results_text = "\n\n".join([
@@ -155,7 +151,7 @@ async def _stream_fallback_answer(state: AgentState) -> AsyncIterator[str]:
         answer_parts: list[str] = []
         async for chunk in call_groq_stream(
             f"Web search results for: {state.query}\n\n{results_text}\n\nAnswer the question based on these results.",
-            system_prompt=WEB_SEARCH_SYSTEM,
+            system_prompt=f"{WEB_SEARCH_SYSTEM}\nThe search provider used was: {provider}.",
             max_tokens=1000,
             temperature=0.1,
         ):

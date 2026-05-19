@@ -17,12 +17,12 @@ import SourceBadge from '@/components/SourceBadge'
 export default function QueryPage() {
   const navigate = useNavigate()
   const {
-    currentQuery, agenticResult, isLoading, error,
+    agenticResult, isLoading, error,
     setQuery, setAgenticResult, setLoading, setError, reset
   } = useQueryStore()
   const { documents, setDocuments, addDocument, removeDocument } = useDashboardStore()
 
-  const [inputValue, setInputValue] = useState(currentQuery)
+  const [inputValue, setInputValue] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [uploadingFile, setUploadingFile] = useState<string | null>(null)
   const [streamingAnswer, setStreamingAnswer] = useState('')
@@ -48,6 +48,9 @@ export default function QueryPage() {
     setStreamStatus('Preparing query...')
     setQuery(q)
     setInputValue('')
+    if (textareaRef.current) {
+      textareaRef.current.value = ''
+    }
     setLoading(true)
     setError(null)
 
@@ -58,6 +61,7 @@ export default function QueryPage() {
         onAnswerReplace: (text) => setStreamingAnswer(text),
         onComplete: (result) => {
           setAgenticResult(result)
+          setQuery('')
           setStreamingAnswer('')
           setStreamStatus('')
         },
@@ -69,6 +73,7 @@ export default function QueryPage() {
           ? e.message
           : undefined
       setError(typeof detail === 'string' ? detail : 'Query failed')
+      setQuery('')
       setStreamingAnswer('')
       setStreamStatus('')
     } finally {
