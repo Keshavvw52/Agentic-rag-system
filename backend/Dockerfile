@@ -20,7 +20,9 @@ RUN python -m venv /opt/venv
 COPY requirements.txt .
 
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+    grep -v '^torch==' requirements.txt > requirements-no-torch.txt && \
+    pip install --index-url https://download.pytorch.org/whl/cpu torch==2.11.0 && \
+    pip install -r requirements-no-torch.txt
 
 
 FROM python:3.11-slim AS runtime
