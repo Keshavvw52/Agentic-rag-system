@@ -165,6 +165,54 @@ Frontend dev server:
 
 - `http://localhost:5173`
 
+## Docker Setup
+
+This repository now includes Docker support for the full stack:
+
+- `backend/Dockerfile`: multi-stage Python image for the FastAPI API
+- `frontend/Dockerfile`: multi-stage Node to Nginx build for the React UI
+- `frontend/nginx.conf`: serves the SPA and proxies `/api` to the backend container
+- `docker-compose.yml`: starts MongoDB, the backend, and the frontend together
+
+### 1. Prepare backend environment
+
+Copy the example file and fill in your real secrets:
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+```
+
+Important values:
+
+- `GROQ_API_KEY`: required for LLM calls
+- `JWT_SECRET`: change this before using the app seriously
+
+### 2. Build and start containers
+
+From the project root:
+
+```powershell
+docker compose up --build
+```
+
+### 3. Open the app
+
+- Frontend: `http://localhost:8080`
+- Backend API: `http://localhost:8000`
+- Backend health check: `http://localhost:8000/api/health`
+
+### 4. Stop containers
+
+```powershell
+docker compose down
+```
+
+To also remove named volumes:
+
+```powershell
+docker compose down -v
+```
+
 ## Typical Development Flow
 
 1. Start MongoDB.

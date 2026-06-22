@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, Upload, Loader2, FileText, Trash2,
-  Zap, ChevronRight, AlertCircle, CheckCircle2
+  Zap, ChevronRight, AlertCircle, CheckCircle2, PlusCircle
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import toast from 'react-hot-toast'
@@ -13,6 +13,7 @@ import { useQueryStore, useDashboardStore } from '@/store'
 import ConfidenceBadge from '@/components/ConfidenceBadge'
 import ConfidenceBreakdownPanel from '@/components/ConfidenceBreakdownPanel'
 import SourceBadge from '@/components/SourceBadge'
+import type { Document } from '@/types'
 
 export default function QueryPage() {
   const navigate = useNavigate()
@@ -25,6 +26,7 @@ export default function QueryPage() {
   const [inputValue, setInputValue] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [uploadingFile, setUploadingFile] = useState<string | null>(null)
+  const [uploadedInChat, setUploadedInChat] = useState<Document[]>([])
   const [streamingAnswer, setStreamingAnswer] = useState('')
   const [streamStatus, setStreamStatus] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -86,6 +88,7 @@ export default function QueryPage() {
     try {
       const { data } = await documentsApi.upload(file)
       addDocument(data)
+      setUploadedInChat(prev => [data, ...prev])
       toast.success(`"${file.name}" uploaded and indexed!`)
     } catch {
       // handled by interceptor
@@ -118,48 +121,26 @@ export default function QueryPage() {
     }
   }
 
+  const handleNewChat = () => {
+    reset()
+    setQuery('')
+    setInputValue('')
+    setUploadedInChat([])
+    setStreamingAnswer('')
+    setStreamStatus('')
+    if (textareaRef.current) {
+      textareaRef.current.value = ''
+    }
+  }
+
   return (
     <div className="flex h-screen overflow-hidden p-4 gap-4">
       {/* Left Panel: Documents */}
       <div className="w-72 flex-shrink-0 organic-card flex flex-col overflow-hidden">
         <div className="p-5 border-b border-timber/60">
           <h2 className="text-sm font-bold text-surface-950">Documents</h2>
-          <p className="text-xs text-surface-800 mt-0.5">Your knowledge base</p>
+          <p className="text-xs text-surface-800 mt-0.5">Upload history</p>
         </div>
-
-        {/* Upload Area */}
-        <div className="p-3">
-          <div
-            onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-[1.75rem] p-4 text-center cursor-pointer transition-all duration-300 ${
-              isDragging
-                ? 'border-brand-500 bg-brand-500/10 scale-[1.02]'
-                : 'border-timber hover:border-clay-500/70 hover:bg-sand/30'
-            }`}
-          >
-            <Upload className="w-5 h-5 text-brand-600 mx-auto mb-2" />
-            <p className="text-xs text-surface-900 font-semibold">Drop PDF, TXT, DOCX</p>
-            <p className="text-xs text-surface-800 mt-0.5">or click to browse</p>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.txt,.docx,.doc,.md"
-            className="hidden"
-            onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-          />
-        </div>
-
-        {/* Upload progress */}
-        {uploadingFile && (
-          <div className="mx-3 mb-2 px-3 py-2 bg-brand-500/10 border border-brand-500/20 rounded-full flex items-center gap-2">
-            <Loader2 className="w-3 h-3 text-brand-400 animate-spin flex-shrink-0" />
-            <span className="text-xs text-brand-700 truncate">Indexing {uploadingFile}...</span>
-          </div>
-        )}
 
         {/* Document list */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
@@ -196,8 +177,16 @@ export default function QueryPage() {
             <h1 className="font-display text-2xl font-bold text-surface-950">Agentic Query</h1>
             <p className="text-xs text-surface-800">Auto-routing · CRAG · Hallucination detection · Confidence scoring</p>
           </div>
-          {agenticResult && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleNewChat}
+              disabled={isLoading}
+              className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-sand/50 hover:bg-sand border border-timber/60 rounded-full text-surface-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              <PlusCircle className="w-3 h-3" /> New chat
+            </button>
+            {agenticResult && (
+              <>
               <button
                 onClick={() => navigate(`/dashboard/query/${agenticResult.query_id}/trace`)}
                 className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/10 hover:bg-brand-500/15 border border-brand-500/20 rounded-full text-brand-700 transition-all"
@@ -210,14 +199,15 @@ export default function QueryPage() {
               >
                 <CheckCircle2 className="w-3 h-3" /> Claims
               </button>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Empty state */}
-          {!agenticResult && !isLoading && !error && (
+          {!agenticResult && !isLoading && !error && uploadedInChat.length === 0 && (
             <div className="h-full flex items-center justify-center">
               <div className="text-center max-w-md">
                 <div className="w-16 h-16 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mx-auto mb-4">
@@ -225,7 +215,7 @@ export default function QueryPage() {
                 </div>
                 <h3 className="font-display text-2xl font-bold text-surface-950 mb-2">Ask anything</h3>
                 <p className="text-surface-800 text-sm">
-                  Upload documents above, then ask a question. The agent will classify your query,
+                  Upload documents from the typing box, then ask a question. The agent will classify your query,
                   route it optimally, verify the answer, and score its confidence.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2 justify-center">
@@ -240,6 +230,49 @@ export default function QueryPage() {
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Uploaded documents in chat */}
+          {(uploadingFile || uploadedInChat.length > 0) && (
+            <div className="space-y-3">
+              {uploadingFile && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-end"
+                >
+                  <div className="max-w-xl organic-card px-4 py-3 flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center flex-shrink-0">
+                      <Loader2 className="w-4 h-4 text-brand-600 animate-spin" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-surface-800 mb-0.5">Uploading document</p>
+                      <p className="text-sm font-bold text-surface-950 truncate">{uploadingFile}</p>
+                      <p className="text-xs text-surface-800">Indexing now… it will appear in document history.</p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+              {uploadedInChat.map(doc => (
+                <motion.div
+                  key={doc.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-end"
+                >
+                  <div className="max-w-xl organic-card px-4 py-3 flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 text-brand-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-surface-800 mb-0.5">Uploaded document</p>
+                      <p className="text-sm font-bold text-surface-950 truncate">{doc.filename}</p>
+                      <p className="text-xs text-surface-800">{doc.chunk_count} chunks indexed · saved in document history</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           )}
 
@@ -400,16 +433,47 @@ export default function QueryPage() {
 
         {/* Input */}
         <div className="p-4 border-t border-timber/60">
-          <div className="flex items-end gap-3">
-            <div className="flex-1 relative">
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`flex items-end gap-3 rounded-[1.75rem] transition-all ${
+              isDragging ? 'bg-brand-500/10 ring-2 ring-brand-500/30' : ''
+            }`}
+          >
+            <div className="flex-1 relative flex items-end gap-2 organic-input rounded-[1.5rem] px-3 py-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={Boolean(uploadingFile)}
+                title="Upload a document"
+                className="mb-1 flex-shrink-0 w-9 h-9 rounded-full bg-sand/60 hover:bg-sand border border-timber/60 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all"
+              >
+                {uploadingFile ? (
+                  <Loader2 className="w-4 h-4 text-brand-600 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4 text-brand-700" />
+                )}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.txt,.docx,.doc,.md"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (file) handleFileUpload(file)
+                  e.target.value = ''
+                }}
+              />
               <textarea
                 ref={textareaRef}
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask a question about your documents… (Enter to send)"
+                placeholder={uploadingFile ? `Indexing ${uploadingFile}...` : 'Upload or ask a question about your documents… (Enter to send)'}
                 rows={2}
-                className="w-full organic-input rounded-[1.5rem] px-4 py-3 text-sm resize-none"
+                className="w-full bg-transparent px-1 py-2 text-sm resize-none outline-none placeholder:text-surface-800"
               />
             </div>
             <button

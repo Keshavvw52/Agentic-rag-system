@@ -16,9 +16,11 @@ Classify the query into exactly one of these types:
 - FACTUAL: Looking for a specific fact, number, date, or data point
 - ANALYTICAL: Requires reasoning, comparison, or analysis across multiple pieces of information
 - SUMMARIZATION: Wants a broad summary or overview of content
-- CONVERSATIONAL: Follow-up question referencing previous conversation
+- CONVERSATIONAL: Explicitly asks about previous chat turns, earlier questions, or prior answers
 - OUT_OF_SCOPE: Cannot be answered from documents (weather, current events, personal info, etc.)
 
+If the query asks about an uploaded document, file, PDF, certificate, resume, or "this document",
+classify it as FACTUAL or SUMMARIZATION, not CONVERSATIONAL.
 Respond only with valid JSON."""
 
 CLASSIFICATION_PROMPT = """Classify this query: "{query}"
@@ -59,6 +61,53 @@ def _looks_like_memory_query(query: str) -> bool:
     has_first_person = any(phrase in normalized for phrase in ("i asked", "have i asked", "my"))
 
     return has_last_or_previous and has_question_or_query and has_first_person
+
+
+def looks_like_document_query(query: str) -> bool:
+    """Heuristic for questions that should stay grounded in uploaded documents."""
+    normalized = " ".join(query.lower().split())
+
+    document_markers = (
+        "uploaded",
+        "upload",
+        "document",
+        "documents",
+        "file",
+        "pdf",
+        "docx",
+        "attachment",
+        "attached",
+        "certificate",
+        "certification",
+        "resume",
+        "cv",
+        "skillsbuild",
+        "completion certificate",
+        "this doc",
+        "this document",
+        "this file",
+        "this pdf",
+    )
+    content_actions = (
+        "summarize",
+        "summary",
+        "read",
+        "extract",
+        "what is in",
+        "what does",
+        "tell me about",
+        "details",
+        "content",
+        "issued",
+        "completed",
+        "course",
+        "name on",
+    )
+
+    return any(marker in normalized for marker in document_markers) or (
+        any(action in normalized for action in content_actions)
+        and any(pointer in normalized for pointer in ("this", "it", "above", "uploaded"))
+    )
 
 
 async def classify_query(
@@ -108,6 +157,15 @@ async def classify_query(
         if confidence < settings.ROUTING_CONFIDENCE_MIN:
             query_type = QueryType.FACTUAL
             reasoning = f"Low confidence ({confidence:.0%}); defaulting to FACTUAL for safe routing. " + reasoning
+
+        # Uploaded-document questions must retrieve from documents, not from chat/web.
+        if looks_like_document_query(query) and not _looks_like_memory_query(query):
+            if any(word in query.lower() for word in ("summarize", "summary", "overview")):
+                query_type = QueryType.SUMMARIZATION
+            elif query_type in (QueryType.CONVERSATIONAL, QueryType.OUT_OF_SCOPE):
+                query_type = QueryType.FACTUAL
+            confidence = max(confidence, 0.85)
+            reasoning = "The query appears to ask about uploaded document content, so it should use document retrieval. " + reasoning
 
         # Lightweight override for explicit memory-style follow-ups.
         if conversation_history and _looks_like_memory_query(query):
