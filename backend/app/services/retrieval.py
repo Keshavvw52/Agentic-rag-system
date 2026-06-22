@@ -1,13 +1,15 @@
 import asyncio
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from rank_bm25 import BM25Okapi
-from sentence_transformers import CrossEncoder
 
 from app.config.settings import settings
 from app.db.chromadb import get_user_collection, embed_texts
 from app.schemas.schemas import RetrievalStrategy
 
-_reranker: CrossEncoder | None = None
+if TYPE_CHECKING:
+    from sentence_transformers import CrossEncoder
+
+_reranker: "CrossEncoder | None" = None
 
 
 def _looks_like_memory_query(query: str) -> bool:
@@ -39,9 +41,10 @@ def _looks_like_memory_query(query: str) -> bool:
     return has_last_or_previous and has_question_or_query and has_first_person
 
 
-def get_reranker() -> CrossEncoder:
+def get_reranker() -> "CrossEncoder":
     global _reranker
     if _reranker is None:
+        from sentence_transformers import CrossEncoder
         _reranker = CrossEncoder(settings.RERANKER_MODEL)
     return _reranker
 
