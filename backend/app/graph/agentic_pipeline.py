@@ -22,7 +22,7 @@ from app.schemas.schemas import (
     ClaimResult, ConfidenceBreakdown, TraceStep, IterationRecord,
     AnswerSource, ConfidenceLabel, ClaimVerification,
 )
-from app.services.query_router import classify_query, get_alternative_strategy
+from app.services.query_router import classify_query, get_alternative_strategy, looks_like_document_query
 from app.services.retrieval import retrieve
 from app.services.corrective_rag import evaluate_retrieval, decide_crag_action, refine_query, filter_relevant_chunks
 from app.services.hallucination_detector import extract_claims, verify_claims, calculate_hallucination_score, regenerate_answer
@@ -214,6 +214,21 @@ async def node_fallback_handler(state: AgentState) -> AgentState:
 
     answer = ""
     source = AnswerSource.ABSTAINED
+
+    if looks_like_document_query(state.query):
+        answer, source = fallback_abstain(state.query, attempts)
+        state.answer = answer
+        state.answer_source = source
+        state.fallback_used = True
+        state.fallback_level = 4
+
+        _add_trace(state, "fallback_handler",
+            f"Fallback Level {state.fallback_level}: {source.value}",
+            "Document-grounded query could not be answered from uploaded document chunks, so web fallback was skipped.",
+            {"fallback_level": state.fallback_level, "source": source.value, "web_skipped": True},
+            t,
+        )
+        return state
 
     # Level 2: Web search
     if settings.USE_TAVILY or True:  # Try DuckDuckGo always
@@ -455,6 +470,8 @@ def should_retry_or_fallback(state: AgentState) -> str:
     decision = decide_crag_action(state.crag_labels)
 
     if decision == "PROCEED":
+        return "generate_answer"
+    elif state.retrieved_chunks and looks_like_document_query(state.query):
         return "generate_answer"
     elif decision == "RETRY" and state.retries < settings.MAX_RETRIES:
         return "retry_retrieval"

@@ -36,6 +36,7 @@ from app.services.retrieval import retrieve, RetrievalStrategy
 from app.services.corrective_rag import filter_relevant_chunks
 from app.services.fallback_chain import fallback_abstain, search_web_results, WEB_SEARCH_SYSTEM, LLM_KNOWLEDGE_SYSTEM
 from app.services.groq_client import call_groq_stream, call_groq_with_context, call_groq_with_context_stream
+from app.services.query_router import looks_like_document_query
 
 router = APIRouter()
 
@@ -139,6 +140,24 @@ async def _stream_fallback_answer(state: AgentState) -> AsyncIterator[str]:
         f"Vector search in your documents (strategy: {state.retrieval_strategy.value if state.retrieval_strategy else 'unknown'})",
         f"Query refinement and retry ({state.retries} attempts)",
     ]
+
+    if looks_like_document_query(state.query):
+        answer, source = fallback_abstain(state.query, attempts)
+        state.answer = answer
+        state.answer_source = source
+        state.fallback_used = True
+        state.fallback_level = 4
+        yield _serialize_event("answer_delta", {"text": answer})
+
+        _add_trace(
+            state,
+            "fallback_handler",
+            f"Fallback Level {state.fallback_level}: {state.answer_source.value}",
+            "Document-grounded query could not be answered from uploaded document chunks, so web fallback was skipped.",
+            {"fallback_level": state.fallback_level, "source": state.answer_source.value, "web_skipped": True},
+            t,
+        )
+        return
 
     web_results, provider = await search_web_results(state.query)
 

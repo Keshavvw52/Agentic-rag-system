@@ -1,13 +1,15 @@
-"""
-Application settings using Pydantic Settings for environment variable management.
-"""
-
 from typing import List
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
     # App
     APP_NAME: str = "Agentic RAG System"
     DEBUG: bool = False
@@ -70,10 +72,5 @@ class Settings(BaseSettings):
         if isinstance(value, str) and value.lower() in {"release", "prod", "production"}:
             return False
         return value
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-
 
 settings = Settings()

@@ -13,7 +13,9 @@ from bson import ObjectId
 from app.config.settings import settings
 from app.db.mongodb import get_database
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use PBKDF2 to avoid the bcrypt/passlib compatibility issue on newer bcrypt
+# releases and to support passwords longer than bcrypt's 72-byte limit.
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 bearer_scheme = HTTPBearer()
 
 

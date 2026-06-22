@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import BinaryIO
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
+from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader, UnstructuredPDFLoader
 
 from app.config.settings import settings
 from app.db.chromadb import get_user_collection, embed_texts
@@ -125,10 +125,27 @@ async def _extract_text(file_bytes: bytes, filename: str, file_ext: str) -> list
             raise ValueError(f"Unsupported file type: {file_ext}")
 
         docs = loader.load()
+        if file_ext == "pdf" and not _has_meaningful_text(docs):
+            loader = UnstructuredPDFLoader(tmp_path, mode="single")
+            docs = loader.load()
+
         chunks = text_splitter.split_documents(docs)
-        return chunks
+        meaningful_chunks = [
+            chunk for chunk in chunks
+            if _has_meaningful_text([chunk])
+        ]
+        return meaningful_chunks
     finally:
         os.unlink(tmp_path)
+
+
+def _has_meaningful_text(docs: list) -> bool:
+    text = "\n".join(
+        (doc.page_content if hasattr(doc, "page_content") else str(doc)).strip()
+        for doc in docs
+    )
+    alpha_numeric_count = sum(char.isalnum() for char in text)
+    return alpha_numeric_count >= 20
 
 
 async def delete_document(document_id: str, user_id: str) -> bool:
